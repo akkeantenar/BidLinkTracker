@@ -1,0 +1,166 @@
+.profile-selector {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #e0e0e0;
+}
+
+.profile-header h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.profile-header p {
+  margin: 0 0 20px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.profile-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.profile-select label {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.profile-dropdown {
+  padding: 10px 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 16px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.profile-dropdown:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.profile-dropdown:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+  color: #666;
+}
+
+.profile-info {
+  background: #f9f9f9;
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-item {
+  color: #666;
+  font-size: 14px;
+}
+
+.info-item strong {
+  color: #333;
+  margin-right: 8px;
+}
+
+.profile-error {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.assigned-message {
+  margin: 0 0 20px 0;
+  color: #22c55e !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.disabled-hint {
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.user-name-info {
+  margin: 0 0 8px 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.user-name-info strong {
+  color: #333;
+}
+
+.name-required-message {
+  margin: 0 0 20px 0;
+  color: #f59e0b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.assigned-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.confirmed-message {
+  margin: 0;
+  color: #22c55e;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-radius: 6px;
+  border: 1px solid #86efac;
+}
+
+.confirm-button {
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  align-self: flex-start;
+}
+
+.confirm-button:hover {
+  background: #5568d3;
+}
+
+.loading-assignment {
+  padding: 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  color: #0369a1;
+}
+
+.loading-assignment p {
+  margin: 0 0 4px 0;
+  font-weight: 500;
+}
+
+.loading-assignment small {
+  color: #0284c7;
+  font-size: 12px;
+}
+

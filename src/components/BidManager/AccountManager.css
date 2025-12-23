@@ -1,0 +1,466 @@
+.account-manager {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #e0e0e0;
+}
+
+.manager-header h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.manager-header p {
+  margin: 0 0 20px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.add-account-button {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: background 0.2s;
+}
+
+.add-account-button:hover {
+  background: #5568d3;
+}
+
+.no-accounts {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-card {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.account-card.active {
+  border-color: #667eea;
+  background: #f5f7ff;
+}
+
+.account-info {
+  flex: 1;
+}
+
+.account-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.account-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.active-badge {
+  padding: 4px 8px;
+  background: #22c55e;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bidder-name {
+  margin: 4px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.file-name {
+  margin: 4px 0;
+  color: #999;
+  font-size: 12px;
+}
+
+.spreadsheet-id {
+  margin: 4px 0 0 0;
+  color: #999;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.account-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.set-active-button,
+.edit-button,
+.delete-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.set-active-button {
+  background: #667eea;
+  color: white;
+}
+
+.set-active-button:hover {
+  background: #5568d3;
+}
+
+.edit-button {
+  background: #f3f4f6;
+  color: #333;
+  border: 1px solid #e0e0e0;
+}
+
+.edit-button:hover {
+  background: #e5e7eb;
+}
+
+.delete-button {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.delete-button:hover {
+  background: #fecaca;
+}
+
+.account-form {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.account-form h4 {
+  margin: 0 0 20px 0;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="file"] {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group input[type="text"]:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.file-selected {
+  margin: 8px 0 0 0;
+  color: #22c55e;
+  font-size: 12px;
+}
+
+.file-hint {
+  margin: 8px 0 0 0;
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.form-error {
+  padding: 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.submit-button,
+.cancel-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submit-button {
+  background: #667eea;
+  color: white;
+}
+
+.submit-button:hover {
+  background: #5568d3;
+}
+
+.cancel-button {
+  background: #f3f4f6;
+  color: #333;
+  border: 1px solid #e0e0e0;
+}
+
+.cancel-button:hover {
+  background: #e5e7eb;
+}
+
+.manager-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.assign-button {
+  padding: 12px 24px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.assign-button:hover {
+  background: #16a34a;
+}
+
+.assigned-info {
+  margin: 4px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assigned-bidder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assigned-badge {
+  color: #22c55e;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.unassign-from-card-button {
+  padding: 4px 8px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.unassign-from-card-button:hover {
+  background: #fecaca;
+}
+
+.confirmation-badge {
+  margin: 4px 0 0 0;
+  color: #22c55e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.confirmation-indicator {
+  padding: 2px 6px;
+  background: #22c55e;
+  color: white;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.assignments-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.assignments-section h4 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.assignments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assignment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.assignment-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.assignment-info strong {
+  color: #333;
+}
+
+.assignment-info span {
+  color: #666;
+}
+
+.unassign-button {
+  padding: 6px 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unassign-button:hover {
+  background: #fecaca;
+}
+
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+  background: white;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.bidder-names-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.bidder-names-section h4 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.bidder-names-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bidder-name-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s;
+}
+
+.bidder-name-item.assigned {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.bidder-name-text {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.bidder-assigned-badge {
+  padding: 4px 8px;
+  background: #22c55e;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bidder-unassigned-badge {
+  padding: 4px 8px;
+  background: #f3f4f6;
+  color: #666;
+  border-radius: 4px;
+  font-size: 12px;
+}
+

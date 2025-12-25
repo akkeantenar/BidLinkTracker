@@ -34,6 +34,7 @@ export interface DuplicateInfo {
   position: string;
   date?: string; // Column A
   no?: string; // Column B
+  companyName?: string; // Column D
   isDuplicate: boolean;
 }
 

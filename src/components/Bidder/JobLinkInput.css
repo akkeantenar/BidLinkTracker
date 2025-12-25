@@ -1,6 +1,13 @@
 .job-link-input {
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
+  padding: 24px;
+}
+
+.profile-section {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .input-header {
@@ -36,12 +43,14 @@
 
 .form-group input,
 .form-group textarea {
+  width: 100%;
   padding: 12px;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   font-size: 16px;
   font-family: inherit;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 .form-group input:focus,
@@ -53,6 +62,26 @@
 .form-group textarea {
   resize: vertical;
   min-height: 120px;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  pointer-events: auto !important;
+  cursor: text !important;
+  background-color: white !important;
+}
+
+.form-group textarea:disabled {
+  background-color: #f5f5f5 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+  pointer-events: none !important;
+}
+
+.form-group textarea:not(:disabled):focus {
+  background-color: white !important;
+  cursor: text !important;
+  pointer-events: auto !important;
 }
 
 .form-group small {
@@ -274,14 +303,20 @@
 }
 
 /* Available Links Section */
-.available-links-section {
+.available-links-section,
+.duplicated-links-section {
   margin-top: 24px;
 }
 
-.available-links-section h3 {
+.available-links-section h3,
+.duplicated-links-section h3 {
   margin: 0 0 16px 0;
   color: #333;
   font-size: 20px;
+}
+
+.duplicated-links-section h3 {
+  color: #c53030;
 }
 
 .available-links-list {
@@ -336,6 +371,124 @@
 .available-link-item .link-status-badge.available {
   background: #c6f6d5;
   color: #22543d;
+}
+
+/* Duplicated Links Styles */
+.duplicated-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.duplicated-link-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: #fef2f2;
+  border: 2px solid #fecaca;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.duplicated-link-item:hover {
+  border-color: #f87171;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.1);
+}
+
+.duplicated-link-item .link-icon {
+  font-size: 20px;
+  color: #dc2626;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.duplicated-link-item .link-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.duplicated-link-item .link-url {
+  color: #333;
+  word-break: break-all;
+  font-size: 14px;
+}
+
+.duplicated-link-item .duplicate-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #666;
+}
+
+.duplicated-link-item .duplicate-label {
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.duplicated-link-item .duplicate-details {
+  color: #7f1d1d;
+  font-family: monospace;
+  background: #fee2e2;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.duplicated-link-item .link-status-badge {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.duplicated-link-item .link-status-badge.duplicate {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.duplicated-link-item .copy-button {
+  padding: 8px 16px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.duplicated-link-item .copy-button:hover {
+  background: #dc2626;
+}
+
+.available-link-item .copy-button {
+  padding: 6px 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.available-link-item .copy-button:hover {
+  background: #5568d3;
+}
+
+.available-link-item .copy-button:active {
+  background: #4c5fd0;
 }
 
 /* Duplicate Links Section */
@@ -413,5 +566,49 @@
 .duplicate-link-item .link-status-badge.duplicate {
   background: #fed7d7;
   color: #c53030;
+}
+
+.bidder-info-display {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.bidder-info-content {
+  flex: 1;
+}
+
+.bidder-info-display p {
+  margin: 4px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+.bidder-info-display strong {
+  color: #1e40af;
+}
+
+.edit-button {
+  padding: 8px 16px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.edit-button:hover {
+  background: #5568d3;
 }
 

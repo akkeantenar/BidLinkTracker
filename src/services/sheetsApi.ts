@@ -9,7 +9,12 @@ const API_BASE = import.meta.env.PROD
   : ''; // In dev, use relative path (Vite proxy handles it)
 
 async function apiCall(action: string, body?: any) {
-  const url = `${API_BASE}/api/sheets?action=${action}`;
+  if (!action) {
+    throw new Error('API action is required');
+  }
+  
+  const url = `${API_BASE}/api/sheets?action=${encodeURIComponent(action)}`;
+  console.log('[sheetsApi] Making API call:', { action, url, hasBody: !!body });
   
   // Get uploaded credentials and spreadsheet ID from sessionStorage if available
   const STORAGE_KEY = 'bidlinktracker_service_account';
@@ -19,10 +24,24 @@ async function apiCall(action: string, body?: any) {
   
   // Log for debugging
   if (!credentials) {
-    console.warn('[sheetsApi] No credentials found in sessionStorage');
+    console.warn('[sheetsApi] ⚠️ No credentials found in sessionStorage');
+    console.warn('[sheetsApi] This means the API will try to use environment variables (VITE_GOOGLE_SERVICE_ACCOUNT_KEY)');
+  } else {
+    try {
+      const creds = JSON.parse(credentials);
+      console.log('[sheetsApi] ✓ Credentials found:', {
+        hasClientEmail: !!creds.client_email,
+        clientEmail: creds.client_email?.substring(0, 20) + '...',
+        hasPrivateKey: !!creds.private_key,
+      });
+    } catch (e) {
+      console.error('[sheetsApi] ✗ Credentials found but invalid JSON');
+    }
   }
   if (!spreadsheetId) {
-    console.warn('[sheetsApi] No spreadsheet ID found in sessionStorage');
+    console.warn('[sheetsApi] ⚠️ No spreadsheet ID found in sessionStorage');
+  } else {
+    console.log('[sheetsApi] ✓ Spreadsheet ID:', spreadsheetId);
   }
   
   const requestBody = body || {};
@@ -33,14 +52,13 @@ async function apiCall(action: string, body?: any) {
       console.error('Failed to parse stored credentials:', error);
       throw new Error('Invalid credentials format. Please re-upload your service account key.');
     }
-  } else {
-    throw new Error('No credentials found. Please add and activate an account with service account credentials.');
   }
+  // If no credentials in sessionStorage, backend will use environment variables
   
   if (spreadsheetId) {
     requestBody.spreadsheetId = spreadsheetId;
   } else {
-    throw new Error('No spreadsheet ID found. Please add and activate an account with a spreadsheet ID.');
+    throw new Error('No spreadsheet ID found. Please provide a spreadsheet ID.');
   }
   
   let response;
@@ -60,11 +78,23 @@ async function apiCall(action: string, body?: any) {
     throw networkError;
   }
 
+  const result = await response.json();
+  
+  // Handle partial success (207) for protected cells
+  if (response.status === 207 && result.partial) {
+    const errorMsg = result.error || 
+      `Some cells are protected. ${result.successful} of ${result.successful + result.failed} entries were updated.`;
+    const error = new Error(errorMsg);
+    (error as any).partial = true;
+    (error as any).successful = result.successful;
+    (error as any).failed = result.failed;
+    (error as any).failedDetails = result.failedDetails;
+    throw error;
+  }
+  
   if (!response.ok) {
-    let errorData;
-    try {
-      errorData = await response.json();
-    } catch {
+    let errorData = result;
+    if (!errorData || !errorData.error) {
       errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
     }
     const errorMessage = errorData.error || errorData.details || `API request failed: ${response.statusText}`;
@@ -78,8 +108,6 @@ async function apiCall(action: string, body?: any) {
     });
     throw new Error(errorMessage);
   }
-
-  const result = await response.json();
   
   if (!result.success) {
     throw new Error(result.error || 'API request failed');
@@ -103,13 +131,27 @@ export async function getTabData(tabName: string): Promise<any[][]> {
 }
 
 /**
- * Get all job URLs from Column F across all tabs
- * Returns array with url, tabName, rowIndex, and position
+ * Get all job URLs from Column F and Column G across all tabs
+ * Returns array with url, tabName, rowIndex, position, date, no, and companyName
  */
 export async function getAllJobUrls(): Promise<
-  Array<{ url: string; tabName: string; rowIndex: number; position: string }>
+  Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string }>
 > {
   return apiCall('getAllJobUrls');
+}
+
+/**
+ * Get job URLs from specific tabs only (optimized for performance)
+ * Returns array with url, tabName, rowIndex, position, date, no, and companyName
+ */
+export async function getJobUrlsFromTabs(tabNames: string[]): Promise<
+  Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string }>
+> {
+  if (!tabNames || !Array.isArray(tabNames) || tabNames.length === 0) {
+    throw new Error('tabNames must be a non-empty array');
+  }
+  console.log('[sheetsApi] Calling getJobUrlsFromTabs with action:', 'getJobUrlsFromTabs', 'tabNames:', tabNames);
+  return apiCall('getJobUrlsFromTabs', { tabNames });
 }
 
 /**

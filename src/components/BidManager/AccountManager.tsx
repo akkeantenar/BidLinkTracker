@@ -13,8 +13,6 @@ export interface Account {
 
 const STORAGE_KEY = 'bidlinktracker_accounts';
 const ACTIVE_ACCOUNT_KEY = 'bidlinktracker_active_account';
-const ASSIGNMENTS_KEY = 'bidlinktracker_assignments';
-const CONFIRMATIONS_KEY = 'bidlinktracker_confirmations';
 
 export function AccountManager() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -23,25 +21,9 @@ export function AccountManager() {
   const [formData, setFormData] = useState({ name: '', bidderName: '', spreadsheetId: '', file: null as File | null });
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showAssignForm, setShowAssignForm] = useState(false);
-  const [assignFormData, setAssignFormData] = useState({ bidderName: '', accountId: '' });
-  const [assignments, setAssignments] = useState<Record<string, string | string[]>>({});
-  const [confirmations, setConfirmations] = useState<Record<string, { confirmed: boolean; confirmedAt: string }>>({});
 
   useEffect(() => {
     loadAccounts();
-    loadAssignments();
-    loadConfirmations();
-    
-    // Listen for confirmation updates
-    const handleConfirmationsUpdate = () => {
-      loadConfirmations();
-    };
-    window.addEventListener('confirmationsUpdated', handleConfirmationsUpdate);
-    
-    return () => {
-      window.removeEventListener('confirmationsUpdated', handleConfirmationsUpdate);
-    };
   }, []);
 
   const loadAccounts = () => {
@@ -69,110 +51,6 @@ export function AccountManager() {
     }
   };
 
-  const loadAssignments = () => {
-    try {
-      const stored = localStorage.getItem(ASSIGNMENTS_KEY);
-      if (stored) {
-        setAssignments(JSON.parse(stored) as Record<string, string | string[]>);
-      }
-    } catch (error) {
-      console.error('Error loading assignments:', error);
-    }
-  };
-
-  const loadConfirmations = () => {
-    try {
-      const stored = localStorage.getItem(CONFIRMATIONS_KEY);
-      if (stored) {
-        setConfirmations(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Error loading confirmations:', error);
-    }
-  };
-
-  const saveAssignments = (newAssignments: Record<string, string | string[]>) => {
-    localStorage.setItem(ASSIGNMENTS_KEY, JSON.stringify(newAssignments));
-    setAssignments(newAssignments);
-    window.dispatchEvent(new Event('assignmentsUpdated'));
-  };
-
-  const handleAssignSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!assignFormData.bidderName.trim()) {
-      setError('Bidder name is required');
-      return;
-    }
-
-    if (!assignFormData.accountId) {
-      setError('Please select an account');
-      return;
-    }
-
-    // Normalize the bidder name (trim and store as-is, but comparison will be case-insensitive)
-    const normalizedBidderName = assignFormData.bidderName.trim();
-    
-    // Support multiple accounts per bidder
-    const existingAssignment = assignments[normalizedBidderName];
-    let accountIds: string[];
-    
-    if (Array.isArray(existingAssignment)) {
-      // Already has multiple accounts, add new one if not already present
-      accountIds = existingAssignment.includes(assignFormData.accountId) 
-        ? existingAssignment 
-        : [...existingAssignment, assignFormData.accountId];
-    } else if (existingAssignment) {
-      // Has one account, convert to array and add new one
-      accountIds = existingAssignment === assignFormData.accountId
-        ? [existingAssignment]
-        : [existingAssignment, assignFormData.accountId];
-    } else {
-      // No existing assignment, create new one
-      accountIds = [assignFormData.accountId];
-    }
-    
-    const newAssignments = {
-      ...assignments,
-      [normalizedBidderName]: accountIds.length === 1 ? accountIds[0] : accountIds,
-    };
-
-    saveAssignments(newAssignments);
-    setShowAssignForm(false);
-    setAssignFormData({ bidderName: '', accountId: '' });
-  };
-
-  const handleUnassign = (bidderName: string, accountId?: string) => {
-    const confirmMessage = accountId 
-      ? `Are you sure you want to unassign this profile from "${bidderName}"?`
-      : `Are you sure you want to unassign all profiles from "${bidderName}"?`;
-    
-    if (window.confirm(confirmMessage)) {
-      const newAssignments = { ...assignments };
-      const existingAssignment = newAssignments[bidderName];
-      
-      if (accountId && Array.isArray(existingAssignment)) {
-        // Remove specific account from array
-        const filtered = existingAssignment.filter(id => id !== accountId);
-        if (filtered.length === 0) {
-          delete newAssignments[bidderName];
-        } else if (filtered.length === 1) {
-          newAssignments[bidderName] = filtered[0];
-        } else {
-          newAssignments[bidderName] = filtered;
-        }
-      } else if (accountId && existingAssignment === accountId) {
-        // Remove single assignment
-        delete newAssignments[bidderName];
-      } else {
-        // Remove all assignments
-        delete newAssignments[bidderName];
-      }
-      
-      saveAssignments(newAssignments);
-    }
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -361,19 +239,6 @@ export function AccountManager() {
     setError(null);
   };
 
-  // Get unique bidder names from accounts
-  const getAvailableBidderNames = (): string[] => {
-    const uniqueNames = new Set<string>();
-    accounts.forEach(account => {
-      if (account.bidderName && account.bidderName.trim()) {
-        uniqueNames.add(account.bidderName.trim());
-      }
-    });
-    return Array.from(uniqueNames).sort();
-  };
-
-  const availableBidderNames = getAvailableBidderNames();
-
   return (
     <div className="account-manager">
       <div className="manager-header">
@@ -381,14 +246,11 @@ export function AccountManager() {
         <p>Upload and manage multiple service account JSON files</p>
       </div>
 
-      {!showForm && !showAssignForm ? (
+      {!showForm ? (
         <>
           <div className="manager-actions">
             <button onClick={() => setShowForm(true)} className="add-account-button">
               + Add New Account
-            </button>
-            <button onClick={() => setShowAssignForm(true)} className="assign-button">
-              Assign Profile to Bidder
             </button>
           </div>
 
@@ -415,46 +277,6 @@ export function AccountManager() {
                     {account.spreadsheetId && (
                       <p className="spreadsheet-id">Spreadsheet: {account.spreadsheetId.length > 30 ? `${account.spreadsheetId.substring(0, 30)}...` : account.spreadsheetId}</p>
                     )}
-                    {Object.entries(assignments).find(([bidder, accId]) => {
-                      const assignment = accId;
-                      if (Array.isArray(assignment)) {
-                        return assignment.includes(account.id);
-                      }
-                      return assignment === account.id;
-                    }) && (() => {
-                      const assignedBidders = Object.entries(assignments)
-                        .filter(([bidder, accId]) => {
-                          const assignment = accId;
-                          if (Array.isArray(assignment)) {
-                            return assignment.includes(account.id);
-                          }
-                          return assignment === account.id;
-                        })
-                        .map(([bidder]) => bidder);
-                      
-                      return (
-                        <div className="assigned-info">
-                          {assignedBidders.map((bidder) => {
-                            const confirmation = confirmations[bidder];
-                            return (
-                              <div key={bidder} className="assigned-bidder-item">
-                                <p className="assigned-badge">✓ Assigned to: {bidder}</p>
-                                {confirmation?.confirmed && (
-                                  <p className="confirmation-badge">✓ Confirmed</p>
-                                )}
-                                <button
-                                  onClick={() => handleUnassign(bidder, account.id)}
-                                  className="unassign-from-card-button"
-                                  title="Unassign this profile from bidder"
-                                >
-                                  Unassign
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
                   </div>
                   <div className="account-actions">
                     {activeAccountId !== account.id && (
@@ -482,122 +304,7 @@ export function AccountManager() {
               ))}
             </div>
           )}
-
-          {availableBidderNames.length > 0 && (
-            <div className="bidder-names-section">
-              <h4>Available Bidder Names</h4>
-              <div className="bidder-names-list">
-                {availableBidderNames.map((bidderName) => {
-                  const assignment = assignments[bidderName];
-                  const assignedAccountIds = Array.isArray(assignment) ? assignment : (assignment ? [assignment] : []);
-                  const assignedAccounts = assignedAccountIds.map(id => accounts.find(a => a.id === id)).filter(Boolean);
-                  return (
-                    <div key={bidderName} className={`bidder-name-item ${assignedAccounts.length > 0 ? 'assigned' : ''}`}>
-                      <span className="bidder-name-text">{bidderName}</span>
-                      {assignedAccounts.length > 0 ? (
-                        <span className="bidder-assigned-badge">
-                          ✓ Assigned to: {assignedAccounts.map(a => a!.name).join(', ')}
-                        </span>
-                      ) : (
-                        <span className="bidder-unassigned-badge">Not assigned</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {Object.keys(assignments).length > 0 && (
-            <div className="assignments-section">
-              <h4>Profile Assignments</h4>
-              <div className="assignments-list">
-                {Object.entries(assignments).map(([bidderName, assignment]) => {
-                  const accountIds = Array.isArray(assignment) ? assignment : [assignment];
-                  const confirmation = confirmations[bidderName];
-                  return accountIds.map((accountId) => {
-                    const account = accounts.find(a => a.id === accountId);
-                    return (
-                      <div key={`${bidderName}-${accountId}`} className="assignment-item">
-                        <div className="assignment-info">
-                          <strong>{bidderName}</strong>
-                          <span>→</span>
-                          <span>{account ? account.name : 'Unknown Account'}</span>
-                          {confirmation?.confirmed && (
-                            <span className="confirmation-indicator" title={`Confirmed on ${new Date(confirmation.confirmedAt).toLocaleString()}`}>
-                              ✓ Confirmed
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => handleUnassign(bidderName, accountId)}
-                          className="unassign-button"
-                        >
-                          Unassign
-                        </button>
-                      </div>
-                    );
-                  });
-                }).flat()}
-              </div>
-            </div>
-          )}
         </>
-      ) : showAssignForm ? (
-        <form onSubmit={handleAssignSubmit} className="account-form">
-          <h4>Assign Profile to Bidder</h4>
-          
-          <div className="form-group">
-            <label htmlFor="assign-bidder-name">Bidder Name *</label>
-            <input
-              id="assign-bidder-name"
-              type="text"
-              list="bidder-names-list"
-              value={assignFormData.bidderName}
-              onChange={(e) => setAssignFormData({ ...assignFormData, bidderName: e.target.value })}
-              placeholder="Select or type bidder name"
-              required
-            />
-            <datalist id="bidder-names-list">
-              {availableBidderNames.map((name) => (
-                <option key={name} value={name}>
-                  {assignments[name] ? `${name} (Already assigned)` : name}
-                </option>
-              ))}
-            </datalist>
-            <small>Select from available bidder names above, or type a new one. This should match the name the bidder uses when logging in.</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="assign-account">Profile *</label>
-            <select
-              id="assign-account"
-              value={assignFormData.accountId}
-              onChange={(e) => setAssignFormData({ ...assignFormData, accountId: e.target.value })}
-              required
-            >
-              <option value="">Select a profile</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.bidderName})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {error && (
-            <div className="form-error">{error}</div>
-          )}
-
-          <div className="form-actions">
-            <button type="submit" className="submit-button">
-              Assign Profile
-            </button>
-            <button type="button" onClick={() => { setShowAssignForm(false); setError(null); }} className="cancel-button">
-              Cancel
-            </button>
-          </div>
-        </form>
       ) : (
         <form onSubmit={handleSubmit} className="account-form">
           <h4>{editingId ? 'Edit Account' : 'Add New Account'}</h4>

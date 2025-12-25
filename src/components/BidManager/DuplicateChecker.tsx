@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAllJobUrls, batchUpdateFeedback } from '../../services/sheetsApi';
+import { getAllJobUrls, batchUpdateFeedback, getAllTabs } from '../../services/sheetsApi';
 import { findDuplicates } from '../../utils/duplicateChecker';
 import { DuplicateInfo } from '../../types';
 import { AccountManager } from './AccountManager';
@@ -13,6 +13,10 @@ export function DuplicateChecker() {
   const [success, setSuccess] = useState<string | null>(null);
   const [hasActiveAccount, setHasActiveAccount] = useState(false);
   const [activeAccountName, setActiveAccountName] = useState<string | null>(null);
+  const [tabCount, setTabCount] = useState<number | 'all'>('all');
+  const [checkedTabs, setCheckedTabs] = useState<string[]>([]);
+  const [totalUrls, setTotalUrls] = useState<number>(0);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const checkActiveAccount = () => {
     const activeId = localStorage.getItem('bidlinktracker_active_account');
@@ -59,14 +63,64 @@ export function DuplicateChecker() {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    setDuplicates(new Map());
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+      setDuplicates(new Map());
+      setTotalUrls(0);
 
     try {
+      // Get all tabs first
+      const allTabs = await getAllTabs();
+      
+      // Get tabs based on selected tab count (or all tabs)
+      const tabsToCheck = tabCount === 'all' ? allTabs : allTabs.slice(-tabCount);
+      
+      // Store the checked tabs so we can filter when marking
+      setCheckedTabs(tabsToCheck);
+      
+      console.log(`Total tabs available: ${allTabs.length}`);
+      console.log(`Checking duplicates in ${tabCount === 'all' ? 'ALL' : `last ${tabCount}`} tabs:`, tabsToCheck);
+      console.log(`Tab names: ${tabsToCheck.join(', ')}`);
+      
+      // Get all URLs from all tabs
       const allUrls = await getAllJobUrls();
-      const duplicateMap = findDuplicates(allUrls);
+      
+      // Filter to only include URLs from the selected tabs
+      const filteredUrls = allUrls.filter(url => tabsToCheck.includes(url.tabName));
+      
+      console.log(`Found ${filteredUrls.length} URLs in ${tabCount === 'all' ? 'ALL' : `last ${tabCount}`} tabs (out of ${allUrls.length} total)`);
+      
+      // Verify which tabs actually have URLs
+      const tabsWithUrls = new Set(filteredUrls.map(url => url.tabName));
+      console.log(`Tabs with URLs:`, Array.from(tabsWithUrls));
+      
+      const duplicateMap = findDuplicates(filteredUrls);
+      
+      // Store total URLs checked
+      setTotalUrls(filteredUrls.length);
+      
+      // Debug: Log first few entries to verify company name is present
+      if (filteredUrls.length > 0) {
+        console.log('Sample URL entries (first 3):', filteredUrls.slice(0, 3).map(u => ({
+          url: u.url.substring(0, 50),
+          companyName: u.companyName,
+          tabName: u.tabName,
+          rowIndex: u.rowIndex
+        })));
+      }
+      
+      // Debug: Check if duplicates have company name
+      if (duplicateMap.size > 0) {
+        const firstDuplicate = Array.from(duplicateMap.values())[0];
+        console.log('First duplicate group entries:', firstDuplicate.map(e => ({
+          tabName: e.tabName,
+          rowIndex: e.rowIndex,
+          companyName: e.companyName,
+          hasCompanyName: !!e.companyName
+        })));
+      }
+      
       setDuplicates(duplicateMap);
       
       // Calculate and log the count for debugging
@@ -79,7 +133,9 @@ export function DuplicateChecker() {
       console.log(`Found ${duplicateMap.size} duplicate groups, ${calculatedCount} total duplicate entries`);
       
       if (duplicateMap.size === 0) {
-        setSuccess('No duplicates found!');
+        setSuccess(`No duplicates found in ${tabCount === 'all' ? 'all' : `the last ${tabCount}`} tabs!`);
+      } else {
+        setSuccess(`Checked ${tabCount === 'all' ? 'all' : `last ${tabCount}`} tabs: ${tabsToCheck.length} tabs`);
       }
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to check duplicates';
@@ -105,45 +161,102 @@ export function DuplicateChecker() {
       return;
     }
 
+    // Ensure we have checked tabs
+    if (checkedTabs.length === 0) {
+      setError('No tabs selected. Please check for duplicates first.');
+      return;
+    }
+
     setUpdating(true);
     setError(null);
     setSuccess(null);
 
     try {
       const updates: Array<{ tabName: string; rowIndex: number; feedback: string }> = [];
+      const tabsToMark = new Set<string>();
 
       for (const [, entries] of duplicates.entries()) {
         // First entry (index 0) is the original/first occurrence
         const firstEntry = entries[0];
         const firstDate = firstEntry.date || 'N/A';
+        const firstTabName = firstEntry.tabName || 'N/A';
         const firstNo = firstEntry.no || 'N/A';
         const firstPosition = firstEntry.position || 'N/A';
         
         // Mark all entries after the first as duplicates
-        // This loop creates (entries.length - 1) updates per group
+        // Only mark entries that are in the checked tabs
         for (let i = 1; i < entries.length; i++) {
           const entry = entries[i];
-          // Format: "Duplicated of Sheet - [Date] - [No] - [Position]"
-          const feedback = `Duplicated of Sheet - ${firstDate} - ${firstNo} - ${firstPosition}`;
-          updates.push({
-            tabName: entry.tabName,
-            rowIndex: entry.rowIndex,
-            feedback,
-          });
+          
+          // Only mark if this entry is in one of the checked tabs
+          if (checkedTabs.includes(entry.tabName)) {
+            // Format: "Duplicated of Sheet - [Date] in [Tab Name] Tab- No.[No] - [Position]"
+            const feedback = `Duplicated of Sheet - ${firstDate} in [${firstTabName}] Tab- No.${firstNo} - ${firstPosition}`;
+            
+            updates.push({
+              tabName: entry.tabName,
+              rowIndex: entry.rowIndex,
+              feedback,
+            });
+            tabsToMark.add(entry.tabName);
+          }
         }
       }
 
       // Verify the count matches
       console.log(`Marking ${updates.length} duplicate entries from ${duplicates.size} duplicate groups`);
+      console.log(`Tabs that will be marked:`, Array.from(tabsToMark));
 
       if (updates.length > 0) {
-        await batchUpdateFeedback(updates);
-        setSuccess(`Successfully marked ${updates.length} duplicate(s) and cleared approval status!`);
-        // Clear duplicates after successful update
-        setDuplicates(new Map());
+        try {
+          await batchUpdateFeedback(updates);
+          const tabsList = Array.from(tabsToMark).join(', ');
+          setSuccess(`Successfully marked ${updates.length} duplicate(s) in tabs: ${tabsList}`);
+          // Clear duplicates after successful update
+          setDuplicates(new Map());
+          setCheckedTabs([]);
+          setTotalUrls(0);
+        } catch (err: any) {
+          // Check if it's a partial success (some cells protected)
+          if (err.partial) {
+            const tabsList = Array.from(tabsToMark).join(', ');
+            const successMsg = `Partially completed: ${err.successful} of ${updates.length} duplicates marked in tabs: ${tabsList}`;
+            const errorMsg = 
+              `Some cells are protected and could not be updated.\n\n` +
+              `Successfully updated: ${err.successful}\n` +
+              `Failed (protected): ${err.failed}\n\n` +
+              `To fix this:\n` +
+              `1. Open the Google Spreadsheet\n` +
+              `2. Go to Data > Protect sheets and ranges\n` +
+              `3. Remove protection from Columns H (Approved) and I (Feedback)\n` +
+              `4. Or share the spreadsheet with edit permissions for your service account email`;
+            
+            setSuccess(successMsg);
+            setError(errorMsg);
+            // Don't clear duplicates if partial - user might want to retry after fixing protection
+          } else {
+            throw err; // Re-throw other errors
+          }
+        }
+      } else {
+        setError('No duplicates to mark in the selected tabs.');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to mark duplicates');
+      const errorMessage = err.message || 'Failed to mark duplicates';
+      
+      // Check for protected cell errors
+      if (errorMessage.includes('protected') || errorMessage.includes('Protected')) {
+        setError(
+          'Some cells are protected and cannot be edited.\n\n' +
+          'To fix this:\n' +
+          '1. Open the Google Spreadsheet\n' +
+          '2. Go to Data > Protect sheets and ranges\n' +
+          '3. Remove protection from Columns H (Approved) and I (Feedback)\n' +
+          '4. Or share the spreadsheet with edit permissions for your service account email'
+        );
+      } else {
+        setError(errorMessage);
+      }
       console.error('Error marking duplicates:', err);
     } finally {
       setUpdating(false);
@@ -161,13 +274,28 @@ export function DuplicateChecker() {
     }
   }
 
+  // Calculate available (non-duplicated) links
+  // Available links = Total URLs - Duplicate entries (excluding originals)
+  // Each duplicate group has 1 original + N duplicates, so available = total - duplicates
+  const availableLinks = totalUrls - totalDuplicates;
+
+  const handleCopyUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy URL:', err);
+    }
+  };
+
   return (
     <div className="duplicate-checker">
       <AccountManager />
       
       <div className="checker-header">
         <h2>Duplicate Job Link Checker</h2>
-        <p>Check for duplicate job URLs across all spreadsheet tabs</p>
+        <p>Check for duplicate job URLs in the last N tabs (most recently created)</p>
         {hasActiveAccount && activeAccountName && (
           <p className="active-account-info">Active Account: <strong>{activeAccountName}</strong></p>
         )}
@@ -179,6 +307,33 @@ export function DuplicateChecker() {
         </div>
       )}
 
+      <div className="tab-count-selector">
+        <label htmlFor="tabCount">Number of tabs to check:</label>
+        <select
+          id="tabCount"
+          value={tabCount}
+          onChange={(e) => {
+            const value = e.target.value;
+            setTabCount(value === 'all' ? 'all' : Number(value));
+            // Clear duplicates and checked tabs when tab count changes
+            setDuplicates(new Map());
+            setCheckedTabs([]);
+            setTotalUrls(0);
+            setSuccess(null);
+            setError(null);
+          }}
+          disabled={loading || !hasActiveAccount}
+          className="tab-count-select"
+        >
+          <option value="all">All tabs</option>
+          <option value={4}>4 tabs</option>
+          <option value={6}>6 tabs</option>
+          <option value={8}>8 tabs</option>
+          <option value={12}>12 tabs</option>
+          <option value={16}>16 tabs</option>
+        </select>
+      </div>
+
       <div className="checker-actions">
         <button
           onClick={handleCheckDuplicates}
@@ -189,13 +344,21 @@ export function DuplicateChecker() {
         </button>
 
         {duplicates.size > 0 && (
-          <button
-            onClick={handleMarkDuplicates}
-            disabled={updating}
-            className="mark-button"
-          >
-            {updating ? 'Updating...' : `Mark ${totalDuplicates} Duplicate(s)`}
-          </button>
+          <>
+            <button
+              onClick={handleMarkDuplicates}
+              disabled={updating}
+              className="mark-button"
+            >
+              {updating ? 'Updating...' : `Mark ${totalDuplicates} Duplicate(s)`}
+            </button>
+            {checkedTabs.length > 0 && (
+              <div className="tabs-to-mark-info">
+                <span className="info-label">Will mark duplicates in:</span>
+                <span className="info-tabs">{checkedTabs.join(', ')}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -211,6 +374,24 @@ export function DuplicateChecker() {
         </div>
       )}
 
+      {/* Summary Statistics */}
+      {totalUrls > 0 && (
+        <div className="summary-stats">
+          <div className="stat-item">
+            <span className="stat-label">Total Links:</span>
+            <span className="stat-value total">{totalUrls}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Available Links:</span>
+            <span className="stat-value available">{availableLinks}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Duplicated Links:</span>
+            <span className="stat-value duplicate">{totalDuplicates}</span>
+          </div>
+        </div>
+      )}
+
       {duplicates.size > 0 && (
         <div className="duplicates-results">
           <h3>Found {duplicates.size} duplicate URL group(s) ({totalDuplicates} duplicate entries to mark)</h3>
@@ -219,6 +400,14 @@ export function DuplicateChecker() {
               <div key={normalizedUrl} className="duplicate-group">
                 <div className="duplicate-url">
                   <strong>URL:</strong> {entries[0].url}
+                  <button
+                    type="button"
+                    onClick={() => handleCopyUrl(entries[0].url)}
+                    className="copy-button"
+                    title="Copy URL"
+                  >
+                    {copiedUrl === entries[0].url ? '✓ Copied' : 'Copy'}
+                  </button>
                 </div>
                 <div className="duplicate-entries">
                   {entries.map((entry, index) => (
@@ -246,7 +435,7 @@ export function DuplicateChecker() {
       {loading && (
         <div className="loading">
           <div className="spinner"></div>
-          <p>Fetching job URLs from all tabs...</p>
+          <p>Fetching job URLs from {tabCount === 'all' ? 'all' : `last ${tabCount}`} tabs...</p>
         </div>
       )}
     </div>

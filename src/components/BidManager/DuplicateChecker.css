@@ -23,11 +23,74 @@
   font-size: 14px;
 }
 
+.tab-count-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.tab-count-selector label {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.tab-count-select {
+  padding: 8px 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  min-width: 120px;
+}
+
+.tab-count-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.tab-count-select:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+
 .checker-actions {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.tabs-to-mark-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #e6f3ff;
+  border-radius: 6px;
+  border: 1px solid #b3d9ff;
+  font-size: 14px;
+}
+
+.tabs-to-mark-info .info-label {
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.tabs-to-mark-info .info-tabs {
+  color: #1e3a8a;
+  font-weight: 600;
 }
 
 .check-button,
@@ -69,6 +132,7 @@
   padding: 12px 16px;
   border-radius: 8px;
   margin-bottom: 24px;
+  white-space: pre-line;
 }
 
 .message.error {
@@ -116,10 +180,37 @@
   padding-bottom: 12px;
   border-bottom: 1px solid #e0e0e0;
   word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .duplicate-url strong {
   color: #667eea;
+}
+
+.duplicate-url .copy-button {
+  padding: 6px 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.duplicate-url .copy-button:hover {
+  background: #5568d3;
+}
+
+.duplicate-url .copy-button:active {
+  background: #4c5fd0;
 }
 
 .duplicate-entries {
@@ -201,5 +292,54 @@
 .loading p {
   color: #666;
   margin: 0;
+}
+
+/* Summary Statistics */
+.summary-stats {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  margin-bottom: 24px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  padding: 12px 20px;
+  border-radius: 8px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.stat-value.total {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.stat-value.available {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.stat-value.duplicate {
+  background: #fed7d7;
+  color: #c53030;
 }
 

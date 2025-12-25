@@ -96,11 +96,17 @@ app.post('/api/sheets', async (req, res) => {
             
             for (let i = 1; i < data.length; i++) {
               const row = data[i];
-              const jobUrl = row[5] || '';
-              const position = row[4] || '';
-              const date = row[0] || ''; // Column A
-              const no = row[1] || ''; // Column B
+              // Ensure row has enough elements (handle sparse arrays from Google Sheets)
+              if (!row || row.length === 0) continue;
               
+              const jobUrl = (row[5] && row[5].trim()) || ''; // Column F - Job Url
+              const appliedUrl = (row[6] && row[6].trim()) || ''; // Column G - Applied Url
+              const position = (row[4] && row[4].trim()) || '';
+              const companyName = (row[3] && row[3].trim()) || ''; // Column D - Company Name
+              const date = (row[0] && row[0].trim()) || ''; // Column A
+              const no = (row[1] && row[1].trim()) || ''; // Column B
+              
+              // Check Column F (Job Url)
               if (jobUrl && jobUrl.trim()) {
                 allUrls.push({
                   url: jobUrl.trim(),
@@ -109,6 +115,20 @@ app.post('/api/sheets', async (req, res) => {
                   position: position.trim(),
                   date: date.trim(),
                   no: no.trim(),
+                  companyName: companyName.trim(),
+                });
+              }
+              
+              // Also check Column G (Applied Url) - treat as separate entry if different from Job Url
+              if (appliedUrl && appliedUrl.trim() && appliedUrl.trim() !== jobUrl.trim()) {
+                allUrls.push({
+                  url: appliedUrl.trim(),
+                  tabName,
+                  rowIndex: i + 1,
+                  position: position.trim(),
+                  date: date.trim(),
+                  no: no.trim(),
+                  companyName: companyName.trim(),
                 });
               }
             }
@@ -117,6 +137,86 @@ app.post('/api/sheets', async (req, res) => {
           }
         }
 
+        return res.json({ success: true, data: allUrls });
+      }
+
+      case 'getJobUrlsFromTabs': {
+        const { tabNames } = req.body;
+        if (!tabNames || !Array.isArray(tabNames) || tabNames.length === 0) {
+          return res.status(400).json({ success: false, error: 'tabNames array is required' });
+        }
+
+        const allUrls = [];
+
+        // Fetch all tabs in parallel for better performance
+        const tabPromises = tabNames.map(async (tabName) => {
+          try {
+            const dataResponse = await sheets.spreadsheets.values.get({
+              spreadsheetId,
+              range: `${tabName}!A:J`,
+            });
+            const data = dataResponse.data.values || [];
+            
+            console.log(`Tab "${tabName}": Found ${data.length} rows (including header)`);
+            
+            const tabUrls = [];
+            
+            for (let i = 1; i < data.length; i++) {
+              const row = data[i];
+              if (!row || row.length === 0) continue;
+              
+              const jobUrl = (row[5] && row[5].trim()) || '';
+              const appliedUrl = (row[6] && row[6].trim()) || '';
+              const position = (row[4] && row[4].trim()) || '';
+              const companyName = (row[3] && row[3].trim()) || '';
+              const date = (row[0] && row[0].trim()) || '';
+              const no = (row[1] && row[1].trim()) || '';
+              
+              if (jobUrl && jobUrl.trim()) {
+                tabUrls.push({
+                  url: jobUrl.trim(),
+                  tabName,
+                  rowIndex: i + 1,
+                  position: position.trim(),
+                  date: date.trim(),
+                  no: no.trim(),
+                  companyName: companyName.trim(),
+                });
+              }
+              
+              if (appliedUrl && appliedUrl.trim() && appliedUrl.trim() !== jobUrl.trim()) {
+                tabUrls.push({
+                  url: appliedUrl.trim(),
+                  tabName,
+                  rowIndex: i + 1,
+                  position: position.trim(),
+                  date: date.trim(),
+                  no: no.trim(),
+                  companyName: companyName.trim(),
+                });
+              }
+            }
+            
+            console.log(`Tab "${tabName}": Extracted ${tabUrls.length} URLs`);
+            return tabUrls;
+          } catch (error) {
+            console.error(`Error reading tab "${tabName}":`, error);
+            console.error(`Error details:`, {
+              message: error.message,
+              code: error.code,
+              status: error.status,
+            });
+            return [];
+          }
+        });
+
+        const tabResults = await Promise.all(tabPromises);
+        tabResults.forEach((tabUrls, index) => {
+          allUrls.push(...tabUrls);
+          console.log(`Tab "${tabNames[index]}": Added ${tabUrls.length} URLs (total so far: ${allUrls.length})`);
+        });
+
+        console.log(`Total URLs extracted from ${tabNames.length} tab(s): ${allUrls.length}`);
         return res.json({ success: true, data: allUrls });
       }
 
@@ -142,16 +242,83 @@ app.post('/api/sheets', async (req, res) => {
           });
         });
 
-        // Use batchUpdate with USER_ENTERED
-        await sheets.spreadsheets.values.batchUpdate({
-          spreadsheetId,
-          requestBody: {
-            valueInputOption: 'USER_ENTERED',
-            data: valueUpdates,
-          },
-        });
+        try {
+          // Try batch update first
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              valueInputOption: 'USER_ENTERED',
+              data: valueUpdates,
+            },
+          });
 
-        return res.json({ success: true });
+          return res.json({ success: true });
+        } catch (batchError) {
+          // If batch update fails due to protected cells, try updating individually
+          if (batchError.message && batchError.message.includes('protected')) {
+            const successful = [];
+            const failed = [];
+
+            // Try updating each cell individually
+            for (const { tabName, rowIndex, feedback } of updates) {
+              try {
+                // Try to update Column H (Approved)
+                try {
+                  await sheets.spreadsheets.values.update({
+                    spreadsheetId,
+                    range: `${tabName}!H${rowIndex}`,
+                    valueInputOption: 'USER_ENTERED',
+                    requestBody: { values: [['FALSE']] },
+                  });
+                } catch (hError) {
+                  if (hError.message && hError.message.includes('protected')) {
+                    failed.push({ tabName, rowIndex, reason: 'Column H (Approved) is protected' });
+                    continue; // Skip this row entirely
+                  }
+                  throw hError; // Re-throw if it's a different error
+                }
+
+                // Try to update Column I (Feedback)
+                try {
+                  await sheets.spreadsheets.values.update({
+                    spreadsheetId,
+                    range: `${tabName}!I${rowIndex}`,
+                    valueInputOption: 'USER_ENTERED',
+                    requestBody: { values: [[feedback]] },
+                  });
+                } catch (iError) {
+                  if (iError.message && iError.message.includes('protected')) {
+                    failed.push({ tabName, rowIndex, reason: 'Column I (Feedback) is protected' });
+                    continue;
+                  }
+                  throw iError;
+                }
+
+                successful.push(`${tabName}!${rowIndex}`);
+              } catch (error) {
+                failed.push({ tabName, rowIndex, reason: error.message || 'Unknown error' });
+              }
+            }
+
+            if (failed.length > 0) {
+              const failedDetails = failed.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ');
+              return res.status(207).json({ 
+                success: true,
+                partial: true,
+                message: `Updated ${successful.length} of ${updates.length} entries. Some cells are protected.`,
+                successful: successful.length,
+                failed: failed.length,
+                failedDetails: failed.length <= 10 ? failedDetails : `${failedDetails.substring(0, 200)}... (and ${failed.length - 10} more)`,
+                error: `Some cells are protected. Please contact the spreadsheet owner to remove protection from Columns H and I, or share the spreadsheet with edit permissions for the service account.`
+              });
+            }
+
+            return res.json({ success: true, message: `Updated ${successful.length} entries` });
+          }
+          
+          // Re-throw if it's not a protection error
+          throw batchError;
+        }
       }
 
       case 'batchAddJobEntries': {

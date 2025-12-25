@@ -1,0 +1,197 @@
+.profile-manager {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.manager-header {
+  margin-bottom: 24px;
+}
+
+.manager-header h2 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 28px;
+}
+
+.manager-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.manager-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.add-profile-button {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.add-profile-button:hover {
+  background: #5568d3;
+}
+
+.no-profiles {
+  padding: 40px;
+  text-align: center;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 2px dashed #e5e7eb;
+}
+
+.no-profiles p {
+  margin: 0;
+  color: #666;
+  font-size: 16px;
+}
+
+.profiles-list {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.profile-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.profile-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.profile-card.active {
+  border-color: #667eea;
+  background: #f0f9ff;
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.profile-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.active-badge {
+  padding: 4px 12px;
+  background: #22c55e;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.bidder-name,
+.spreadsheet-id {
+  margin: 4px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.bidder-name {
+  font-weight: 500;
+}
+
+.spreadsheet-id {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.set-active-button,
+.edit-button,
+.delete-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.set-active-button {
+  background: #667eea;
+  color: white;
+}
+
+.set-active-button:hover {
+  background: #5568d3;
+}
+
+.edit-button {
+  background: #667eea;
+  color: white;
+}
+
+.edit-button:hover {
+  background: #5568d3;
+}
+
+.delete-button {
+  background: #ef4444;
+  color: white;
+}
+
+.delete-button:hover {
+  background: #dc2626;
+}
+
+.continue-section {
+  margin-top: 32px;
+  text-align: center;
+  padding-top: 24px;
+  border-top: 2px solid #e5e7eb;
+}
+
+.continue-button {
+  padding: 14px 32px;
+  background: #48bb78;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.continue-button:hover {
+  background: #38a169;
+}
+

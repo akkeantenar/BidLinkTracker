@@ -67,7 +67,7 @@ export function areUrlsDuplicate(url1: string, url2: string): boolean {
  * Returns a map of normalized URL to array of duplicate entries
  */
 export function findDuplicates(
-  allEntries: Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string }>
+  allEntries: Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string }>
 ): Map<string, DuplicateInfo[]> {
   const urlMap = new Map<string, DuplicateInfo[]>();
   
@@ -87,6 +87,7 @@ export function findDuplicates(
       position: entry.position,
       date: entry.date,
       no: entry.no,
+      companyName: entry.companyName,
       isDuplicate: false, // Will be set later
     });
   }
@@ -137,7 +138,9 @@ export function checkUrlDuplicate(
   const normalized = normalizeUrl(url);
   
   for (const entry of existingEntries) {
-    if (normalizeUrl(entry.url) === normalized) {
+    const normalizedEntry = normalizeUrl(entry.url);
+    if (normalizedEntry === normalized) {
+      console.log(`Duplicate found! Input: ${url} (normalized: ${normalized}) matches existing: ${entry.url} (normalized: ${normalizedEntry})`);
       return {
         isDuplicate: true,
         duplicateInfo: {

@@ -169,7 +169,9 @@ export function AccountManager() {
         setActiveAccountId(account.id);
         localStorage.setItem(ACTIVE_ACCOUNT_KEY, account.id);
         sessionStorage.setItem('bidlinktracker_service_account', JSON.stringify(account.credentials));
-        sessionStorage.setItem('bidlinktracker_spreadsheet_id', account.spreadsheetId);
+        if (account.spreadsheetId) {
+          sessionStorage.setItem('bidlinktracker_spreadsheet_id', account.spreadsheetId);
+        }
       }
 
       // Dispatch custom event to notify other components

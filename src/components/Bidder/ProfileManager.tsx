@@ -29,7 +29,6 @@ export function ProfileManager({
   const [bidderData, setBidderData] = useState<BidderData | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadBidderData();

@@ -68,10 +68,24 @@ The project already has a `vercel.json` file. Verify it includes API route confi
    - **Output Directory:** `dist` (should be auto-filled)
    - **Install Command:** `npm install` (should be auto-filled)
 
-5. **Configure Environment Variables:**
-   Before deploying, click "Environment Variables" and add:
+5. **Configure Environment Variables (Optional):**
+   
+   **⚠️ IMPORTANT:** Environment variables are **optional** if users will upload their own credentials!
+   
+   The app supports two modes:
+   
+   **Mode 1: User-Uploaded Credentials (Recommended for Multiple Accounts)**
+   - ✅ **Skip environment variables** - Users upload their own credentials through the UI
+   - ✅ Each user can have multiple profiles with different service accounts
+   - ✅ Credentials stored securely in user's browser
+   - ✅ One deployment serves all users
+   
+   **Mode 2: Environment Variables (Fallback/Default)**
+   - Use if you want to provide a default service account
+   - Only used if users haven't uploaded their own credentials
+   - Click "Environment Variables" and add:
 
-   **Required Variables:**
+   **Optional Variables (for fallback/default):**
    
    - **`VITE_GOOGLE_SERVICE_ACCOUNT_KEY`**
      - Value: Your entire service account JSON as a **single-line string**
@@ -82,12 +96,10 @@ The project already has a `vercel.json` file. Verify it includes API route confi
        - Or use Vercel's "Encrypted" option for security
    
    - **`VITE_SPREADSHEET_ID`**
-     - Value: Your Google Spreadsheet ID
+     - Value: Your Google Spreadsheet ID (for default/fallback)
      - Example: `18Rz4xAYhcxdfYJchKQzIhle_gHi7Nk0nEmvqdJUXgpU`
      - This is the ID from your spreadsheet URL: `https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit`
 
-   **Optional Variables:**
-   
    - **`VITE_GOOGLE_CLIENT_ID`**
      - Value: Your Google OAuth Client ID (if using OAuth)
      - Only needed if you plan to use OAuth authentication
@@ -126,15 +138,84 @@ The project already has a `vercel.json` file. Verify it includes API route confi
 
 ## Step 4: Configure Environment Variables in Vercel Dashboard
 
-Even if you deployed via CLI, it's easier to manage environment variables in the dashboard:
+### Understanding Multiple Accounts
+
+**Important:** Your application already supports multiple accounts! Here's how it works:
+
+1. **User-Uploaded Credentials (Recommended):**
+   - Each user can create multiple profiles
+   - Each profile can have its own service account JSON and spreadsheet ID
+   - Credentials are stored in the user's browser (localStorage)
+   - **No environment variables needed for this approach!**
+
+2. **Environment Variables (Optional Fallback):**
+   - Environment variables in Vercel are used as a **fallback only**
+   - They're only used if a user hasn't uploaded their own credentials
+   - Useful for providing a default service account for testing/demos
+
+### Option A: Multi-Account Setup (Recommended - No Env Vars Needed)
+
+**Best for:** Multiple users, each with their own Google Sheets and service accounts
+
+1. **Deploy without environment variables:**
+   - Users will upload their own service account JSON files through the UI
+   - Each user can manage multiple profiles with different credentials
+   - Credentials are stored securely in the user's browser
+
+2. **How it works:**
+   - Users go to "Manage Profiles" → "Add New Profile"
+   - They upload their service account JSON file
+   - They enter their spreadsheet ID
+   - The app stores credentials in localStorage (browser storage)
+   - Each profile can have different credentials
+
+**Advantages:**
+- ✅ One deployment serves all users
+- ✅ Each user manages their own credentials
+- ✅ No need to manage multiple environment variables
+- ✅ More secure (credentials never stored on server)
+
+### Option B: Environment Variables as Fallback
+
+**Best for:** Providing a default service account for testing or shared access
 
 1. Go to your project on [vercel.com](https://vercel.com)
 2. Click **Settings** → **Environment Variables**
-3. Add the required variables (see Step 3, Option A for details)
+3. Add the variables (see Step 3, Option A for details)
 4. **Important:** After adding/updating environment variables, you need to **redeploy**:
    - Go to **Deployments** tab
    - Click the three dots (⋯) on the latest deployment
    - Click **Redeploy**
+
+**Note:** These environment variables are only used if:
+- A user hasn't uploaded their own credentials
+- The API needs a fallback service account
+
+### Option C: Multiple Deployments (One Per Account)
+
+**Best for:** Completely separate instances for different organizations
+
+If you want completely separate deployments for different accounts:
+
+1. **Create separate Vercel projects:**
+   - Project 1: `bidlinktracker-account1` → Set env vars for Account 1
+   - Project 2: `bidlinktracker-account2` → Set env vars for Account 2
+   - Project 3: `bidlinktracker-account3` → Set env vars for Account 3
+
+2. **Each deployment has its own:**
+   - Environment variables
+   - Domain URL
+   - Deployment history
+
+3. **Deploy from different branches or repos:**
+   - Option 1: Same repo, different branches
+   - Option 2: Different repos
+   - Option 3: Same branch, different Vercel projects
+
+**When to use this:**
+- Different organizations need completely separate instances
+- Different security/compliance requirements
+- Need separate billing/usage tracking
 
 ## Step 5: Verify Deployment
 

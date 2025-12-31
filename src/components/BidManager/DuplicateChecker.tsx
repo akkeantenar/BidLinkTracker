@@ -190,13 +190,16 @@ export function DuplicateChecker() {
           
           // Only mark if this entry is in one of the checked tabs
           if (checkedTabs.includes(entry.tabName)) {
-            // Format: "Duplicated of Sheet - [Date] in [Tab Name] Tab- No.[No] - [Position]"
-            const feedback = `Duplicated of Sheet - ${firstDate} in [${firstTabName}] Tab- No.${firstNo} - ${firstPosition}`;
+            // Determine source type based on the duplicate entry's sourceColumn
+            const sourceType = entry.sourceColumn === 'G' ? 'Applied Url' : 'Job Url';
+            // Format: "Duplicated of Sheet - [Date] in [Tab Name] Tab- No.[No] - [Position] - [Applied Url/Job Url]"
+            const feedback = `Duplicated of Sheet - ${firstDate} in [${firstTabName}] Tab- No.${firstNo} - ${firstPosition} - ${sourceType}`;
             
             updates.push({
               tabName: entry.tabName,
               rowIndex: entry.rowIndex,
               feedback,
+              sourceColumn: entry.sourceColumn,
             });
             tabsToMark.add(entry.tabName);
           }
@@ -209,9 +212,15 @@ export function DuplicateChecker() {
 
       if (updates.length > 0) {
         try {
-          await batchUpdateFeedback(updates);
+          const result: any = await batchUpdateFeedback(updates);
+          const skipped = result?.skipped || 0;
+          const updated = result?.updated || updates.length;
           const tabsList = Array.from(tabsToMark).join(', ');
-          setSuccess(`Successfully marked ${updates.length} duplicate(s) in tabs: ${tabsList}`);
+          let successMsg = `Successfully marked ${updated} duplicate(s) in tabs: ${tabsList}`;
+          if (skipped > 0) {
+            successMsg += `. ${skipped} skipped (already marked as duplicate with Job Url)`;
+          }
+          setSuccess(successMsg);
           // Clear duplicates after successful update
           setDuplicates(new Map());
           setCheckedTabs([]);
@@ -263,16 +272,47 @@ export function DuplicateChecker() {
     }
   };
 
-  // Calculate total duplicates - count entries that will be marked (all except first in each group)
-  // This should match the number of updates we'll create in handleMarkDuplicates
-  let totalDuplicates = 0;
-  for (const [, entries] of duplicates.entries()) {
-    // For each group, count all entries except the first one (index 0)
-    // This matches the logic: for (let i = 1; i < entries.length; i++)
-    if (entries.length > 1) {
-      totalDuplicates += entries.length - 1;
+  // Separate duplicates into Job Url and Applied Url groups
+  const jobUrlDuplicateGroups = new Map<string, DuplicateInfo[]>();
+  const appliedUrlDuplicateGroups = new Map<string, DuplicateInfo[]>();
+  
+  for (const [normalizedUrl, entries] of duplicates.entries()) {
+    // Filter entries by source column
+    const jobUrlEntries = entries.filter(e => e.sourceColumn === 'F' || !e.sourceColumn);
+    const appliedUrlEntries = entries.filter(e => e.sourceColumn === 'G');
+    
+    // Only add to groups if there are duplicates (more than 1 entry)
+    if (jobUrlEntries.length > 1) {
+      // Create a unique key for job URL group
+      const jobKey = `job-${normalizedUrl}`;
+      jobUrlDuplicateGroups.set(jobKey, jobUrlEntries);
+    }
+    
+    if (appliedUrlEntries.length > 1) {
+      // Create a unique key for applied URL group
+      const appliedKey = `applied-${normalizedUrl}`;
+      appliedUrlDuplicateGroups.set(appliedKey, appliedUrlEntries);
     }
   }
+  
+  // Calculate counts for each type
+  let jobUrlDuplicateCount = 0;
+  let appliedUrlDuplicateCount = 0;
+  
+  for (const [, entries] of jobUrlDuplicateGroups.entries()) {
+    if (entries.length > 1) {
+      jobUrlDuplicateCount += entries.length - 1;
+    }
+  }
+  
+  for (const [, entries] of appliedUrlDuplicateGroups.entries()) {
+    if (entries.length > 1) {
+      appliedUrlDuplicateCount += entries.length - 1;
+    }
+  }
+
+  // Calculate total duplicates
+  const totalDuplicates = jobUrlDuplicateCount + appliedUrlDuplicateCount;
 
   // Calculate available (non-duplicated) links
   // Available links = Total URLs - Duplicate entries (excluding originals)
@@ -389,46 +429,112 @@ export function DuplicateChecker() {
             <span className="stat-label">Duplicated Links:</span>
             <span className="stat-value duplicate">{totalDuplicates}</span>
           </div>
+          {totalDuplicates > 0 && (
+            <>
+              <div className="stat-item">
+                <span className="stat-label">Job Url Duplicates:</span>
+                <span className="stat-value duplicate">{jobUrlDuplicateCount}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Applied Url Duplicates:</span>
+                <span className="stat-value duplicate">{appliedUrlDuplicateCount}</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {duplicates.size > 0 && (
         <div className="duplicates-results">
           <h3>Found {duplicates.size} duplicate URL group(s) ({totalDuplicates} duplicate entries to mark)</h3>
-          <div className="duplicates-list">
-            {Array.from(duplicates.entries()).map(([normalizedUrl, entries]) => (
-              <div key={normalizedUrl} className="duplicate-group">
-                <div className="duplicate-url">
-                  <strong>URL:</strong> {entries[0].url}
-                  <button
-                    type="button"
-                    onClick={() => handleCopyUrl(entries[0].url)}
-                    className="copy-button"
-                    title="Copy URL"
-                  >
-                    {copiedUrl === entries[0].url ? '✓ Copied' : 'Copy'}
-                  </button>
-                </div>
-                <div className="duplicate-entries">
-                  {entries.map((entry, index) => (
-                    <div
-                      key={`${entry.tabName}-${entry.rowIndex}`}
-                      className={`duplicate-entry ${index === 0 ? 'original' : 'duplicate'}`}
-                    >
-                      <span className="entry-label">
-                        {index === 0 ? 'Original' : 'Duplicate'}
-                      </span>
-                      <span className="entry-info">
-                        Tab: <strong>{entry.tabName}</strong> | 
-                        Row: <strong>{entry.rowIndex}</strong> | 
-                        Position: <strong>{entry.position || 'N/A'}</strong>
-                      </span>
+          
+          {/* Job Url Duplicates Section */}
+          {jobUrlDuplicateGroups.size > 0 && (
+            <div className="duplicate-section">
+              <h4 className="section-title">Job Url Duplicates (Column F) - {jobUrlDuplicateCount} duplicate(s)</h4>
+              <div className="duplicates-list">
+                {Array.from(jobUrlDuplicateGroups.entries()).map(([normalizedUrl, entries]) => (
+                  <div key={`job-${normalizedUrl}`} className="duplicate-group">
+                    <div className="duplicate-url">
+                      <strong>URL:</strong> {entries[0].url}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUrl(entries[0].url)}
+                        className="copy-button"
+                        title="Copy URL"
+                      >
+                        {copiedUrl === entries[0].url ? '✓ Copied' : 'Copy'}
+                      </button>
                     </div>
-                  ))}
-                </div>
+                    <div className="duplicate-entries">
+                      {entries.map((entry, index) => (
+                        <div
+                          key={`${entry.tabName}-${entry.rowIndex}`}
+                          className={`duplicate-entry ${index === 0 ? 'original' : 'duplicate'}`}
+                        >
+                          <span className="entry-label">
+                            {index === 0 ? 'Original' : 'Duplicate'}
+                          </span>
+                          <span className="entry-info">
+                            Tab: <strong>{entry.tabName}</strong> | 
+                            Row: <strong>{entry.rowIndex}</strong> | 
+                            Position: <strong>{entry.position || 'N/A'}</strong>
+                            {entry.sourceColumn && (
+                              <> | Source: <strong>Column {entry.sourceColumn}</strong></>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* Applied Url Duplicates Section */}
+          {appliedUrlDuplicateGroups.size > 0 && (
+            <div className="duplicate-section">
+              <h4 className="section-title">Applied Url Duplicates (Column G) - {appliedUrlDuplicateCount} duplicate(s)</h4>
+              <div className="duplicates-list">
+                {Array.from(appliedUrlDuplicateGroups.entries()).map(([normalizedUrl, entries]) => (
+                  <div key={`applied-${normalizedUrl}`} className="duplicate-group">
+                    <div className="duplicate-url">
+                      <strong>URL:</strong> {entries[0].url}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUrl(entries[0].url)}
+                        className="copy-button"
+                        title="Copy URL"
+                      >
+                        {copiedUrl === entries[0].url ? '✓ Copied' : 'Copy'}
+                      </button>
+                    </div>
+                    <div className="duplicate-entries">
+                      {entries.map((entry, index) => (
+                        <div
+                          key={`${entry.tabName}-${entry.rowIndex}`}
+                          className={`duplicate-entry ${index === 0 ? 'original' : 'duplicate'}`}
+                        >
+                          <span className="entry-label">
+                            {index === 0 ? 'Original' : 'Duplicate'}
+                          </span>
+                          <span className="entry-info">
+                            Tab: <strong>{entry.tabName}</strong> | 
+                            Row: <strong>{entry.rowIndex}</strong> | 
+                            Position: <strong>{entry.position || 'N/A'}</strong>
+                            {entry.sourceColumn && (
+                              <> | Source: <strong>Column {entry.sourceColumn}</strong></>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -101,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const tabsResponse = await sheets.spreadsheets.get({ spreadsheetId });
         const tabs = (tabsResponse.data.sheets || []).map((sheet: any) => sheet.properties?.title || '');
         
-        const allUrls: Array<{ url: string; tabName: string; rowIndex: number; position: string; date: string; no: string; companyName: string }> = [];
+        const allUrls: Array<{ url: string; tabName: string; rowIndex: number; position: string; date: string; no: string; companyName: string; sourceColumn: 'F' | 'G' }> = [];
 
         for (const tabName of tabs) {
           try {
@@ -133,6 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'F',
                 });
               }
               
@@ -146,6 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'G',
                 });
               }
             }
@@ -163,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ success: false, error: 'tabNames array is required' });
         }
 
-        const allUrls: Array<{ url: string; tabName: string; rowIndex: number; position: string; date: string; no: string; companyName: string }> = [];
+        const allUrls: Array<{ url: string; tabName: string; rowIndex: number; position: string; date: string; no: string; companyName: string; sourceColumn: 'F' | 'G' }> = [];
 
         // Fetch all tabs in parallel for better performance
         const tabPromises = tabNames.map(async (tabName: string) => {
@@ -176,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             console.log(`Tab "${tabName}": Found ${data.length} rows (including header)`);
             
-            const tabUrls: Array<{ url: string; tabName: string; rowIndex: number; position: string; date: string; no: string; companyName: string }> = [];
+            const tabUrls: Array<{ url: string; tabName: string; rowIndex: number; position: string; date: string; no: string; companyName: string; sourceColumn: 'F' | 'G' }> = [];
             
             for (let i = 1; i < data.length; i++) {
               const row = data[i];
@@ -198,6 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'F',
                 });
               }
               
@@ -210,6 +213,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'G',
                 });
               }
             }
@@ -244,10 +248,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ success: false, error: 'updates must be an array' });
         }
 
+        // First, read existing feedback for all rows to check if we should skip overwriting
+        const feedbackChecks = new Map<string, string>(); // key: `${tabName}!I${rowIndex}`, value: existing feedback
+        
+        // Group updates by tab for efficient batch reading
+        const updatesByTab = new Map<string, Array<{ rowIndex: number; feedback: string; sourceColumn?: 'F' | 'G' }>>();
+        updates.forEach(({ tabName, rowIndex, feedback, sourceColumn }: any) => {
+          if (!updatesByTab.has(tabName)) {
+            updatesByTab.set(tabName, []);
+          }
+          updatesByTab.get(tabName)!.push({ rowIndex, feedback, sourceColumn });
+        });
+
+        // Read existing feedback for each tab
+        for (const [tabName, tabUpdates] of updatesByTab.entries()) {
+          try {
+            const rowIndices = tabUpdates.map(u => u.rowIndex);
+            const minRow = Math.min(...rowIndices);
+            const maxRow = Math.max(...rowIndices);
+            
+            // Read Column I for the range of rows we need
+            const feedbackResponse = await sheets.spreadsheets.values.get({
+              spreadsheetId,
+              range: `${tabName}!I${minRow}:I${maxRow}`,
+            });
+            
+            const feedbackData = feedbackResponse.data.values || [];
+            const rowOffset = minRow - 1; // Convert to 0-based index
+            
+            // Map existing feedback to row indices
+            rowIndices.forEach(rowIndex => {
+              const arrayIndex = rowIndex - rowOffset;
+              const existingFeedback = (feedbackData[arrayIndex] && feedbackData[arrayIndex][0] && feedbackData[arrayIndex][0].trim()) || '';
+              feedbackChecks.set(`${tabName}!I${rowIndex}`, existingFeedback);
+            });
+          } catch (error) {
+            console.error(`Error reading feedback for tab ${tabName}:`, error);
+            // If we can't read feedback, continue anyway (will try to write)
+          }
+        }
+
+        // Filter updates: skip if existing feedback contains "- Job Url" and we're trying to write "- Applied Url"
+        const filteredUpdates: any[] = [];
+        const skippedUpdates: Array<{ tabName: string; rowIndex: number; reason: string }> = [];
+        
+        updates.forEach(({ tabName, rowIndex, feedback, sourceColumn }: any) => {
+          const key = `${tabName}!I${rowIndex}`;
+          const existingFeedback = feedbackChecks.get(key) || '';
+          
+          // Check if we should skip this update
+          const isAppliedUrl = sourceColumn === 'G' || feedback.includes('- Applied Url');
+          const hasJobUrlFeedback = existingFeedback.includes('- Job Url');
+          
+          if (isAppliedUrl && hasJobUrlFeedback) {
+            // Skip: Don't overwrite Job Url feedback with Applied Url feedback
+            skippedUpdates.push({ 
+              tabName, 
+              rowIndex, 
+              reason: 'Already marked as duplicate with Job Url' 
+            });
+            console.log(`Skipping feedback update for ${tabName} row ${rowIndex}: Already has Job Url duplicate feedback`);
+            return;
+          }
+          
+          // Include this update
+          filteredUpdates.push({ tabName, rowIndex, feedback });
+        });
+
         // Update both Column H (Approved - clear it) and Column I (Feedback)
         const valueUpdates: any[] = [];
         
-        updates.forEach(({ tabName, rowIndex, feedback }: any) => {
+        filteredUpdates.forEach(({ tabName, rowIndex, feedback }: any) => {
           // Clear Column H (Approved) - set to FALSE
           valueUpdates.push({
             range: `${tabName}!H${rowIndex}`,
@@ -270,7 +341,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
           });
 
-          return res.json({ success: true });
+          const message = skippedUpdates.length > 0
+            ? `Updated ${filteredUpdates.length} entries. ${skippedUpdates.length} skipped (already marked as duplicate with Job Url).`
+            : `Updated ${filteredUpdates.length} entries`;
+          return res.json({ 
+            success: true, 
+            message,
+            skipped: skippedUpdates.length,
+            total: updates.length,
+            updated: filteredUpdates.length
+          });
         } catch (batchError: any) {
           // If batch update fails due to protected cells, try updating individually
           if (batchError.message && batchError.message.includes('protected')) {
@@ -318,20 +398,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }
             }
 
+            const allSkipped = [...skippedUpdates];
             if (failed.length > 0) {
-              const failedDetails = failed.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ');
+              allSkipped.push(...failed);
+            }
+            
+            if (allSkipped.length > 0) {
+              const skippedDetails = skippedUpdates.length > 0 
+                ? skippedUpdates.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ')
+                : '';
+              const failedDetails = failed.length > 0
+                ? failed.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ')
+                : '';
+              const allDetails = [skippedDetails, failedDetails].filter(d => d).join('; ');
+              
               return res.status(207).json({ 
                 success: true,
                 partial: true,
-                message: `Updated ${successful.length} of ${updates.length} entries. Some cells are protected.`,
+                message: `Updated ${successful.length} of ${updates.length} entries. ${skippedUpdates.length > 0 ? `${skippedUpdates.length} skipped (already has Job Url feedback). ` : ''}${failed.length > 0 ? 'Some cells are protected.' : ''}`,
                 successful: successful.length,
-                failed: failed.length,
-                failedDetails: failed.length <= 10 ? failedDetails : `${failedDetails.substring(0, 200)}... (and ${failed.length - 10} more)`,
-                error: `Some cells are protected. Please contact the spreadsheet owner to remove protection from Columns H and I, or share the spreadsheet with edit permissions for the service account.`
+                failed: allSkipped.length,
+                skipped: skippedUpdates.length,
+                failedDetails: allDetails.length <= 200 ? allDetails : `${allDetails.substring(0, 200)}...`,
+                error: failed.length > 0 
+                  ? `Some cells are protected. Please contact the spreadsheet owner to remove protection from Columns H and I, or share the spreadsheet with edit permissions for the service account.`
+                  : undefined
               });
             }
 
-            return res.json({ success: true, message: `Updated ${successful.length} entries` });
+            const message = skippedUpdates.length > 0
+              ? `Updated ${successful.length} entries. ${skippedUpdates.length} skipped (already marked as duplicate with Job Url).`
+              : `Updated ${successful.length} entries`;
+            return res.json({ success: true, message, skipped: skippedUpdates.length });
           }
           
           // Re-throw if it's not a protection error

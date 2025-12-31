@@ -67,7 +67,7 @@ export function areUrlsDuplicate(url1: string, url2: string): boolean {
  * Returns a map of normalized URL to array of duplicate entries
  */
 export function findDuplicates(
-  allEntries: Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string }>
+  allEntries: Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string; sourceColumn?: 'F' | 'G' }>
 ): Map<string, DuplicateInfo[]> {
   const urlMap = new Map<string, DuplicateInfo[]>();
   
@@ -88,6 +88,7 @@ export function findDuplicates(
       date: entry.date,
       no: entry.no,
       companyName: entry.companyName,
+      sourceColumn: entry.sourceColumn,
       isDuplicate: false, // Will be set later
     });
   }
@@ -130,22 +131,27 @@ export function findDuplicates(
 
 /**
  * Checks if a URL is a duplicate against existing entries
+ * Returns duplicate info including sourceColumn to identify if it's from Applied Url (Column G)
  */
 export function checkUrlDuplicate(
   url: string,
-  existingEntries: Array<{ url: string; tabName: string; position: string }>
-): { isDuplicate: boolean; duplicateInfo?: { tabName: string; position: string } } {
+  existingEntries: Array<{ url: string; tabName: string; position: string; sourceColumn?: 'F' | 'G'; rowIndex?: number; date?: string; no?: string }>
+): { isDuplicate: boolean; duplicateInfo?: { tabName: string; position: string; sourceColumn?: 'F' | 'G'; rowIndex?: number; date?: string; no?: string } } {
   const normalized = normalizeUrl(url);
   
   for (const entry of existingEntries) {
     const normalizedEntry = normalizeUrl(entry.url);
     if (normalizedEntry === normalized) {
-      console.log(`Duplicate found! Input: ${url} (normalized: ${normalized}) matches existing: ${entry.url} (normalized: ${normalizedEntry})`);
+      console.log(`Duplicate found! Input: ${url} (normalized: ${normalized}) matches existing: ${entry.url} (normalized: ${normalizedEntry}) from Column ${entry.sourceColumn || 'F'}`);
       return {
         isDuplicate: true,
         duplicateInfo: {
           tabName: entry.tabName,
           position: entry.position,
+          sourceColumn: entry.sourceColumn,
+          rowIndex: entry.rowIndex,
+          date: entry.date,
+          no: entry.no,
         },
       };
     }

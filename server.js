@@ -2,6 +2,8 @@
 import express from 'express';
 import cors from 'cors';
 import { google } from 'googleapis';
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
 
 const app = express();
 const PORT = 3001;
@@ -116,6 +118,7 @@ app.post('/api/sheets', async (req, res) => {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'F',
                 });
               }
               
@@ -129,6 +132,7 @@ app.post('/api/sheets', async (req, res) => {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'G',
                 });
               }
             }
@@ -181,6 +185,7 @@ app.post('/api/sheets', async (req, res) => {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'F',
                 });
               }
               
@@ -193,6 +198,7 @@ app.post('/api/sheets', async (req, res) => {
                   date: date.trim(),
                   no: no.trim(),
                   companyName: companyName.trim(),
+                  sourceColumn: 'G',
                 });
               }
             }
@@ -226,10 +232,77 @@ app.post('/api/sheets', async (req, res) => {
           return res.status(400).json({ success: false, error: 'updates must be an array' });
         }
 
+        // First, read existing feedback for all rows to check if we should skip overwriting
+        const feedbackChecks = new Map(); // key: `${tabName}!I${rowIndex}`, value: existing feedback
+        
+        // Group updates by tab for efficient batch reading
+        const updatesByTab = new Map();
+        updates.forEach(({ tabName, rowIndex, feedback, sourceColumn }) => {
+          if (!updatesByTab.has(tabName)) {
+            updatesByTab.set(tabName, []);
+          }
+          updatesByTab.get(tabName).push({ rowIndex, feedback, sourceColumn });
+        });
+
+        // Read existing feedback for each tab
+        for (const [tabName, tabUpdates] of updatesByTab.entries()) {
+          try {
+            const rowIndices = tabUpdates.map(u => u.rowIndex);
+            const minRow = Math.min(...rowIndices);
+            const maxRow = Math.max(...rowIndices);
+            
+            // Read Column I for the range of rows we need
+            const feedbackResponse = await sheets.spreadsheets.values.get({
+              spreadsheetId,
+              range: `${tabName}!I${minRow}:I${maxRow}`,
+            });
+            
+            const feedbackData = feedbackResponse.data.values || [];
+            const rowOffset = minRow - 1; // Convert to 0-based index
+            
+            // Map existing feedback to row indices
+            rowIndices.forEach(rowIndex => {
+              const arrayIndex = rowIndex - rowOffset;
+              const existingFeedback = (feedbackData[arrayIndex] && feedbackData[arrayIndex][0] && feedbackData[arrayIndex][0].trim()) || '';
+              feedbackChecks.set(`${tabName}!I${rowIndex}`, existingFeedback);
+            });
+          } catch (error) {
+            console.error(`Error reading feedback for tab ${tabName}:`, error);
+            // If we can't read feedback, continue anyway (will try to write)
+          }
+        }
+
+        // Filter updates: skip if existing feedback contains "- Job Url" and we're trying to write "- Applied Url"
+        const filteredUpdates = [];
+        const skippedUpdates = [];
+        
+        updates.forEach(({ tabName, rowIndex, feedback, sourceColumn }) => {
+          const key = `${tabName}!I${rowIndex}`;
+          const existingFeedback = feedbackChecks.get(key) || '';
+          
+          // Check if we should skip this update
+          const isAppliedUrl = sourceColumn === 'G' || feedback.includes('- Applied Url');
+          const hasJobUrlFeedback = existingFeedback.includes('- Job Url');
+          
+          if (isAppliedUrl && hasJobUrlFeedback) {
+            // Skip: Don't overwrite Job Url feedback with Applied Url feedback
+            skippedUpdates.push({ 
+              tabName, 
+              rowIndex, 
+              reason: 'Already marked as duplicate with Job Url' 
+            });
+            console.log(`Skipping feedback update for ${tabName} row ${rowIndex}: Already has Job Url duplicate feedback`);
+            return;
+          }
+          
+          // Include this update
+          filteredUpdates.push({ tabName, rowIndex, feedback });
+        });
+
         // Update both Column H (Approved - clear it) and Column I (Feedback)
         const valueUpdates = [];
         
-        updates.forEach(({ tabName, rowIndex, feedback }) => {
+        filteredUpdates.forEach(({ tabName, rowIndex, feedback }) => {
           // Clear Column H (Approved) - set to FALSE
           valueUpdates.push({
             range: `${tabName}!H${rowIndex}`,
@@ -252,7 +325,16 @@ app.post('/api/sheets', async (req, res) => {
             },
           });
 
-          return res.json({ success: true });
+          const message = skippedUpdates.length > 0
+            ? `Updated ${filteredUpdates.length} entries. ${skippedUpdates.length} skipped (already marked as duplicate with Job Url).`
+            : `Updated ${filteredUpdates.length} entries`;
+          return res.json({ 
+            success: true, 
+            message,
+            skipped: skippedUpdates.length,
+            total: updates.length,
+            updated: filteredUpdates.length
+          });
         } catch (batchError) {
           // If batch update fails due to protected cells, try updating individually
           if (batchError.message && batchError.message.includes('protected')) {
@@ -260,7 +342,7 @@ app.post('/api/sheets', async (req, res) => {
             const failed = [];
 
             // Try updating each cell individually
-            for (const { tabName, rowIndex, feedback } of updates) {
+            for (const { tabName, rowIndex, feedback } of filteredUpdates) {
               try {
                 // Try to update Column H (Approved)
                 try {
@@ -300,20 +382,38 @@ app.post('/api/sheets', async (req, res) => {
               }
             }
 
+            const allSkipped = [...skippedUpdates];
             if (failed.length > 0) {
-              const failedDetails = failed.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ');
+              allSkipped.push(...failed);
+            }
+            
+            if (allSkipped.length > 0) {
+              const skippedDetails = skippedUpdates.length > 0 
+                ? skippedUpdates.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ')
+                : '';
+              const failedDetails = failed.length > 0
+                ? failed.map(f => `${f.tabName} row ${f.rowIndex}: ${f.reason}`).join('; ')
+                : '';
+              const allDetails = [skippedDetails, failedDetails].filter(d => d).join('; ');
+              
               return res.status(207).json({ 
                 success: true,
                 partial: true,
-                message: `Updated ${successful.length} of ${updates.length} entries. Some cells are protected.`,
+                message: `Updated ${successful.length} of ${updates.length} entries. ${skippedUpdates.length > 0 ? `${skippedUpdates.length} skipped (already has Job Url feedback). ` : ''}${failed.length > 0 ? 'Some cells are protected.' : ''}`,
                 successful: successful.length,
-                failed: failed.length,
-                failedDetails: failed.length <= 10 ? failedDetails : `${failedDetails.substring(0, 200)}... (and ${failed.length - 10} more)`,
-                error: `Some cells are protected. Please contact the spreadsheet owner to remove protection from Columns H and I, or share the spreadsheet with edit permissions for the service account.`
+                failed: allSkipped.length,
+                skipped: skippedUpdates.length,
+                failedDetails: allDetails.length <= 200 ? allDetails : `${allDetails.substring(0, 200)}...`,
+                error: failed.length > 0 
+                  ? `Some cells are protected. Please contact the spreadsheet owner to remove protection from Columns H and I, or share the spreadsheet with edit permissions for the service account.`
+                  : undefined
               });
             }
 
-            return res.json({ success: true, message: `Updated ${successful.length} entries` });
+            const message = skippedUpdates.length > 0
+              ? `Updated ${successful.length} entries. ${skippedUpdates.length} skipped (already marked as duplicate with Job Url).`
+              : `Updated ${successful.length} entries`;
+            return res.json({ success: true, message, skipped: skippedUpdates.length });
           }
           
           // Re-throw if it's not a protection error

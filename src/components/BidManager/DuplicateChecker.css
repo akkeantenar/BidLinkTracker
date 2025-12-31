@@ -158,8 +158,29 @@
 }
 
 .duplicates-results h3 {
+  margin: 0 0 24px 0;
+  color: #333;
+}
+
+.duplicate-section {
+  margin-bottom: 32px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+}
+
+.duplicate-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
   margin: 0 0 16px 0;
   color: #333;
+  font-size: 18px;
+  font-weight: 600;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .duplicates-list {

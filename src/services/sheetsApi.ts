@@ -132,20 +132,20 @@ export async function getTabData(tabName: string): Promise<any[][]> {
 
 /**
  * Get all job URLs from Column F and Column G across all tabs
- * Returns array with url, tabName, rowIndex, position, date, no, and companyName
+ * Returns array with url, tabName, rowIndex, position, date, no, companyName, and sourceColumn
  */
 export async function getAllJobUrls(): Promise<
-  Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string }>
+  Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string; sourceColumn: 'F' | 'G' }>
 > {
   return apiCall('getAllJobUrls');
 }
 
 /**
  * Get job URLs from specific tabs only (optimized for performance)
- * Returns array with url, tabName, rowIndex, position, date, no, and companyName
+ * Returns array with url, tabName, rowIndex, position, date, no, companyName, and sourceColumn
  */
 export async function getJobUrlsFromTabs(tabNames: string[]): Promise<
-  Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string }>
+  Array<{ url: string; tabName: string; rowIndex: number; position: string; date?: string; no?: string; companyName?: string; sourceColumn: 'F' | 'G' }>
 > {
   if (!tabNames || !Array.isArray(tabNames) || tabNames.length === 0) {
     throw new Error('tabNames must be a non-empty array');
@@ -170,9 +170,10 @@ export async function updateFeedback(
 /**
  * Batch update feedback for multiple rows
  * Also clears Column H (Approved) for duplicate entries
+ * Will skip updates if existing feedback contains "- Job Url" and new feedback is "- Applied Url"
  */
 export async function batchUpdateFeedback(
-  updates: Array<{ tabName: string; rowIndex: number; feedback: string }>
+  updates: Array<{ tabName: string; rowIndex: number; feedback: string; sourceColumn?: 'F' | 'G' }>
 ): Promise<void> {
   await apiCall('batchUpdateFeedback', { updates });
 }

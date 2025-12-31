@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getAllTabs, getJobUrlsFromTabs } from '../../services/sheetsApi';
+import { getAllTabs, getJobUrlsFromTabs, batchUpdateFeedback } from '../../services/sheetsApi';
 import { checkUrlDuplicate } from '../../utils/duplicateChecker';
 import { ProfileManager } from './ProfileManager';
 import './JobLinkInput.css';
@@ -8,7 +8,7 @@ import './JobLinkInput.css';
 interface LinkStatus {
   url: string;
   isDuplicate: boolean;
-  duplicateInfo?: { tabName: string; position: string };
+  duplicateInfo?: { tabName: string; position: string; sourceColumn?: 'F' | 'G'; rowIndex?: number; date?: string; no?: string };
 }
 
 interface Profile {
@@ -44,9 +44,10 @@ export function JobLinkInput() {
   const [bidderInfo, setBidderInfo] = useState<BidderInfo | null>(null);
   const [jobLinks, setJobLinks] = useState('');
   const [linkStatuses, setLinkStatuses] = useState<LinkStatus[]>([]);
-  const [existingUrls, setExistingUrls] = useState<Array<{ url: string; tabName: string; position: string }>>([]);
+  const [existingUrls, setExistingUrls] = useState<Array<{ url: string; tabName: string; position: string; sourceColumn?: 'F' | 'G'; rowIndex?: number; date?: string; no?: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | string | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -56,7 +57,7 @@ export function JobLinkInput() {
     spreadsheetId: string;
     profileName: string;
     last4Tabs: string[];
-    urls: Array<{ url: string; tabName: string; position: string }>;
+    urls: Array<{ url: string; tabName: string; position: string; sourceColumn?: 'F' | 'G'; rowIndex?: number; date?: string; no?: string }>;
     timestamp: number;
   } | null>(null);
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -159,7 +160,7 @@ export function JobLinkInput() {
 
 
   // Load existing URLs from last 4 tabs (with caching)
-  const loadExistingData = useCallback(async (forceRefresh = false): Promise<Array<{ url: string; tabName: string; position: string }> | undefined> => {
+  const loadExistingData = useCallback(async (forceRefresh = false): Promise<Array<{ url: string; tabName: string; position: string; sourceColumn?: 'F' | 'G'; rowIndex?: number; date?: string; no?: string }> | undefined> => {
     if (!bidderInfo) {
       setError('Please complete the setup form first');
       return undefined;
@@ -237,8 +238,16 @@ export function JobLinkInput() {
         }
       }
       
-      // Map to the format we need
-      const formattedUrls = allUrls.map(u => ({ url: u.url, tabName: u.tabName, position: u.position }));
+      // Map to the format we need (include sourceColumn and other metadata)
+      const formattedUrls = allUrls.map(u => ({ 
+        url: u.url, 
+        tabName: u.tabName, 
+        position: u.position,
+        sourceColumn: u.sourceColumn,
+        rowIndex: u.rowIndex,
+        date: u.date,
+        no: u.no,
+      }));
       
       // Debug: Log sample URLs to verify they're being loaded
       if (formattedUrls.length > 0) {
@@ -358,6 +367,52 @@ export function JobLinkInput() {
 
       console.log('Duplicate check results:', statuses);
       setLinkStatuses(statuses);
+
+      // Auto-write feedback for all duplicates (both Job URLs and Applied URLs)
+      const duplicatesToMark = statuses.filter(s => 
+        s.isDuplicate && 
+        s.duplicateInfo?.sourceColumn &&
+        s.duplicateInfo?.rowIndex &&
+        s.duplicateInfo?.tabName
+      );
+
+      if (duplicatesToMark.length > 0) {
+        const appliedUrlCount = duplicatesToMark.filter(s => s.duplicateInfo?.sourceColumn === 'G').length;
+        const jobUrlCount = duplicatesToMark.filter(s => s.duplicateInfo?.sourceColumn === 'F').length;
+        
+        console.log(`Found ${duplicatesToMark.length} duplicate(s): ${appliedUrlCount} Applied URL(s), ${jobUrlCount} Job URL(s). Writing feedback...`);
+        
+        const feedbackUpdates = duplicatesToMark.map(status => {
+          const info = status.duplicateInfo!;
+          const sourceType = info.sourceColumn === 'G' ? 'Applied Url' : 'Job Url';
+          // Format: "Duplicated of Sheet - [Date] in [Tab Name] Tab- No.[No] - [Position] - [Applied Url/Job Url]"
+          const feedback = `Duplicated of Sheet - ${info.date || 'N/A'} in [${info.tabName}] Tab- No.${info.no || 'N/A'} - ${info.position || 'N/A'} - ${sourceType}`;
+          
+          return {
+            tabName: info.tabName,
+            rowIndex: info.rowIndex!,
+            feedback,
+            sourceColumn: info.sourceColumn,
+          };
+        });
+
+        try {
+          await batchUpdateFeedback(feedbackUpdates);
+          console.log(`Successfully wrote feedback for ${feedbackUpdates.length} duplicate(s)`);
+          // Show success message
+          const successMsg = `✓ Found ${duplicatesToMark.length} duplicate(s) (${appliedUrlCount} Applied URL(s), ${jobUrlCount} Job URL(s)). Feedback has been automatically written to Column I.`;
+          setSuccess(successMsg);
+          // Clear success message after 5 seconds
+          setTimeout(() => setSuccess(null), 5000);
+        } catch (feedbackError: any) {
+          console.error('Error writing feedback for duplicates:', feedbackError);
+          // Don't fail the entire duplicate check if feedback writing fails
+          const errorMsg = feedbackError.partial 
+            ? `Duplicate check completed. However, some feedback could not be written: ${feedbackError.message}`
+            : `Duplicate check completed. However, feedback could not be written: ${feedbackError.message}`;
+          setError(errorMsg);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to check duplicates');
       console.error('Error checking duplicates:', err);
@@ -573,7 +628,12 @@ export function JobLinkInput() {
           {checking ? 'Checking...' : 'Check for Duplicates'}
         </button>
 
-        {error && (
+        {success && (
+          <div className="message success" style={{ whiteSpace: 'pre-line', backgroundColor: '#d4edda', color: '#155724', border: '1px solid #c3e6cb', padding: '12px', borderRadius: '4px', marginBottom: '16px' }}>
+            {success}
+          </div>
+        )}
+      {error && (
           <div className="message error" style={{ whiteSpace: 'pre-line' }}>
             {error}
             {error.includes('Test Connection') && (

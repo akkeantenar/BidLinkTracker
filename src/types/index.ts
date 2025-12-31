@@ -36,6 +36,7 @@ export interface DuplicateInfo {
   no?: string; // Column B
   companyName?: string; // Column D
   isDuplicate: boolean;
+  sourceColumn?: 'F' | 'G'; // Column F (Job Url) or Column G (Applied Url)
 }
 
 export interface TabInfo {
